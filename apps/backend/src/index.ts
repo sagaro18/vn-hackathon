@@ -18,13 +18,74 @@ app.use(
 const chatRequestSchema = z.object({
   characterId: z.string(),
   userMessage: z.string().min(1, "userMessage is required"),
+  currentAffection: z.number().optional(),
+  turnCount: z.number().optional(),
 });
 
-const agentResponseSchema = z.object({
-  reply: z.string(),
-  affectionDelta: z.number(),
-  expression: z.enum(["Happy", "Neutral", "Sad", "Angry", "Giggling"]),
-});
+type Expression = "Happy" | "Neutral" | "Sad" | "Angry" | "Giggling";
+
+function scoreAffection(userMessage: string): {
+  affectionDelta: number;
+  expression: Expression;
+} {
+  const msg = userMessage.toLowerCase().trim();
+
+  const strongPositiveSignals = [
+    "thank you",
+    "thanks",
+    "tell me more",
+    "what do you think",
+    "that sounds beautiful",
+    "that's beautiful",
+    "i understand",
+    "i'd like that",
+    "i would like that",
+    "stars",
+    "dream",
+    "dreams",
+    "adventure",
+    "are you okay",
+    "how are you",
+    "you seem",
+    "that sounds nice",
+    "i'm listening",
+    "i want to know more",
+    "leave with me",
+  ];
+
+  const negativeSignals = [
+    "shut up",
+    "stupid",
+    "idiot",
+    "liar",
+    "you're weird",
+    "you are weird",
+    "i don't care",
+    "none of your business",
+    "answer me now",
+    "whatever",
+    "leave me alone",
+    "annoying",
+    "dumb",
+  ];
+
+  const positiveMatch = strongPositiveSignals.some((phrase) =>
+    msg.includes(phrase)
+  );
+  const negativeMatch = negativeSignals.some((phrase) =>
+    msg.includes(phrase)
+  );
+
+  if (negativeMatch) {
+    return { affectionDelta: -1, expression: "Angry" };
+  }
+
+  if (positiveMatch) {
+    return { affectionDelta: 1, expression: "Happy" };
+  }
+
+  return { affectionDelta: 0, expression: "Neutral" };
+}
 
 app.get("/", (c) => {
   return c.json({
@@ -55,7 +116,12 @@ app.post("/api/chat", async (c) => {
       );
     }
 
-    const { characterId, userMessage } = parsed.data;
+    const {
+      characterId,
+      userMessage,
+      currentAffection = 0,
+      turnCount = 0,
+    } = parsed.data;
 
     if (characterId !== "vaina") {
       return c.json(
@@ -74,14 +140,24 @@ app.post("/api/chat", async (c) => {
         ? result
         : typeof result?.text === "string"
           ? result.text
-          : "..."
+          : "...";
+
+    const { affectionDelta, expression } = scoreAffection(userMessage);
+
+    const nextAffection = Math.max(0, currentAffection + affectionDelta);
+    const nextTurnCount = turnCount + 1;
+
+    const sceneEnded = nextTurnCount >= 4 && nextAffection >= 3;
 
     return c.json({
       ok: true,
       characterId,
       reply,
-      affectionDelta: 1,
-      expression: "Neutral",
+      affectionDelta,
+      expression,
+      nextAffection,
+      nextTurnCount,
+      sceneEnded,
     });
   } catch (error) {
     console.error("Chat Error:", error);

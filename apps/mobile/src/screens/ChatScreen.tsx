@@ -1,98 +1,124 @@
-import React, { useState, useRef } from 'react';
-import { 
-    View, Text, TextInput, TouchableOpacity, StyleSheet, 
-    KeyboardAvoidingView, Platform, ScrollView 
-  } from 'react-native';
-
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App';
 
-// Local types for the chat UI
-interface Message {
-  id: string;
-  sender: 'player' | 'vaina';
-  text: string;
-}
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Chat'>;
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', sender: 'vaina', text: 'Well Mister, what did you want to talk about?' }
-  ]);
+  const navigation = useNavigation<NavigationProp>();
+
+  const [currentLine, setCurrentLine] = useState(
+    'Well Mister, what did you want to talk about?'
+  );
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // Game State
+
   const [affection, setAffection] = useState(0);
+  const [turnCount, setTurnCount] = useState(0);
   const [currentExpression, setCurrentExpression] = useState('Happy');
-  
-  const scrollViewRef = useRef<ScrollView>(null);
 
-  const sendMessage = async () => {
-    if (!inputText.trim()) return;
+  const sendMessage = async (forcedMessage?: string) => {
+    const userMessage = (forcedMessage ?? inputText).trim();
 
-    // 1. Add player message to UI instantly
-    const userMsg: Message = { id: Date.now().toString(), sender: 'player', text: inputText };
-    setMessages(prev => [...prev, userMsg]);
+    if (!userMessage || loading) return;
+
     setInputText('');
     setLoading(true);
 
     try {
-      // 2. Call your local Hono + Mastra API
-      // NOTE: If testing on a physical phone, change 'localhost' to your Mac's local Wi-Fi IP address!
       const response = await fetch('http://localhost:3000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ characterId: 'vaina', userMessage: userMsg.text }),
+        body: JSON.stringify({
+          characterId: 'vaina',
+          userMessage,
+          currentAffection: affection,
+          turnCount,
+        }),
       });
 
-      if (!response.ok) throw new Error('Failed to fetch from AI');
+      if (!response.ok) {
+        throw new Error('Failed to fetch from AI');
+      }
 
       const data = await response.json();
 
-      // 3. Update the UI with Vaina's response
-      const vainaMsg: Message = { id: (Date.now() + 1).toString(), sender: 'vaina', text: data.reply };
-      setMessages(prev => [...prev, vainaMsg]);
-      
-      // 4. Update the relationship meter and her expression
-      setAffection(prev => prev + data.affectionDelta);
-      setCurrentExpression(data.expression);
+      setCurrentLine(data.reply ?? '...');
+      setAffection(data.nextAffection ?? affection);
+      setTurnCount(data.nextTurnCount ?? turnCount);
+      setCurrentExpression(data.expression ?? 'Neutral');
 
+      if (data.sceneEnded) {
+        setTimeout(() => {
+          navigation.replace('Paywall');
+        }, 700);
+      }
     } catch (error) {
-      console.error("Chat Error:", error);
-      const errorMsg: Message = { id: Date.now().toString(), sender: 'vaina', text: '... (She seems unresponsive)' };
-      setMessages(prev => [...prev, errorMsg]);
+      console.error('Chat Error:', error);
+      setCurrentLine('...She seems unresponsive.');
     } finally {
       setLoading(false);
     }
   };
 
+  const quickPrompts = [
+    'Do you come up here to watch the stars a lot?',
+    'What is this village like at night?',
+    "You always call me 'Mister' like we're in some old story.",
+  ];
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView 
-        style={styles.container} 
+      <KeyboardAvoidingView
+        style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Top Bar: Relationship Meter & Expression */}
+        <View style={styles.backgroundPlaceholder}>
+          <Text style={styles.debugText}>BG: Village_Night</Text>
+        </View>
+
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Vaina ({currentExpression})</Text>
           <Text style={styles.meter}>Affection: {affection} / 3</Text>
         </View>
 
-        {/* Chat History */}
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.chatArea}
-          contentContainerStyle={{ padding: 15, paddingBottom: 40 }}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-        >
-          {messages.map((msg) => (
-            <View key={msg.id} style={[styles.messageBubble, msg.sender === 'player' ? styles.playerBubble : styles.vainaBubble]}>
-              <Text style={styles.messageText}>{msg.text}</Text>
-            </View>
-          ))}
-          {loading && <Text style={styles.loadingText}>Vaina is thinking...</Text>}
-        </ScrollView>
+        <View style={styles.portraitPlaceholder}>
+          <Text style={styles.debugText}>Vaina</Text>
+          <Text style={styles.debugText}>({currentExpression})</Text>
+        </View>
 
-        {/* Input Area */}
+        <View style={styles.dialogueBox}>
+          <Text style={styles.speakerName}>Vaina</Text>
+          <Text style={styles.dialogueText}>
+            {loading ? 'Vaina is thinking...' : currentLine}
+          </Text>
+          <Text style={styles.turnText}>Turns: {turnCount}</Text>
+        </View>
+
+        <View style={styles.quickPromptRow}>
+          {quickPrompts.map((prompt) => (
+            <TouchableOpacity
+              key={prompt}
+              style={[styles.quickPromptButton, loading && styles.quickPromptDisabled]}
+              onPress={() => sendMessage(prompt)}
+              disabled={loading}
+            >
+              <Text style={styles.quickPromptText}>{prompt}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -101,33 +127,163 @@ export default function ChatScreen() {
             value={inputText}
             onChangeText={setInputText}
             editable={!loading}
-            onSubmitEditing={sendMessage}
+            onSubmitEditing={() => sendMessage()}
+            returnKeyType="send"
           />
-          <TouchableOpacity style={[styles.sendButton, loading && styles.sendButtonDisabled]} onPress={sendMessage} disabled={loading}>
+          <TouchableOpacity
+            style={[styles.sendButton, loading && styles.sendButtonDisabled]}
+            onPress={() => sendMessage()}
+            disabled={loading}
+          >
             <Text style={styles.sendButtonText}>Send</Text>
           </TouchableOpacity>
         </View>
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#0f3460' },
-  container: { flex: 1 },
-  header: { padding: 15, backgroundColor: '#1a1a2e', flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderColor: '#e94560' },
-  headerTitle: { color: '#e94560', fontSize: 18, fontWeight: 'bold' },
-  meter: { color: '#FFD700', fontSize: 16, fontWeight: 'bold' },
-  chatArea: { flex: 1, backgroundColor: '#000' },
-  messageBubble: { maxWidth: '80%', padding: 12, borderRadius: 10, marginBottom: 10 },
-  playerBubble: { alignSelf: 'flex-end', backgroundColor: '#e94560' },
-  vainaBubble: { alignSelf: 'flex-start', backgroundColor: '#16213e', borderWidth: 1, borderColor: '#0f3460' },
-  messageText: { color: '#fff', fontSize: 16 },
-  loadingText: { color: '#888', fontStyle: 'italic', alignSelf: 'flex-start', marginLeft: 10 },
-  inputContainer: { flexDirection: 'row', padding: 10, backgroundColor: '#1a1a2e', borderTopWidth: 1, borderColor: '#0f3460' },
-  input: { flex: 1, backgroundColor: '#000', color: '#fff', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, marginRight: 10, borderWidth: 1, borderColor: '#333' },
-  sendButton: { backgroundColor: '#e94560', justifyContent: 'center', borderRadius: 20, paddingHorizontal: 20 },
-  sendButtonDisabled: { backgroundColor: '#555' },
-  sendButtonText: { color: '#fff', fontWeight: 'bold' }
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flex: 1,
+  },
+  backgroundPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#1a1a2e',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    position: 'absolute',
+    top: 10,
+    left: 15,
+    right: 15,
+    padding: 15,
+    backgroundColor: 'rgba(26, 26, 46, 0.9)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderColor: '#e94560',
+    borderRadius: 10,
+  },
+  headerTitle: {
+    color: '#e94560',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  meter: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  portraitPlaceholder: {
+    position: 'absolute',
+    bottom: 260,
+    alignSelf: 'center',
+    width: 250,
+    height: 350,
+    backgroundColor: '#16213e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#0f3460',
+  },
+  dialogueBox: {
+    position: 'absolute',
+    bottom: 155,
+    left: 15,
+    right: 15,
+    minHeight: 130,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderColor: '#e94560',
+    borderWidth: 2,
+    borderRadius: 10,
+    padding: 15,
+  },
+  speakerName: {
+    color: '#e94560',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  dialogueText: {
+    color: '#FFF',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  turnText: {
+    color: '#888',
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: 'right',
+  },
+  quickPromptRow: {
+    position: 'absolute',
+    bottom: 95,
+    left: 15,
+    right: 15,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickPromptButton: {
+    backgroundColor: 'rgba(22, 33, 62, 0.95)',
+    borderColor: '#0f3460',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  quickPromptDisabled: {
+    opacity: 0.5,
+  },
+  quickPromptText: {
+    color: '#dbe4ff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  inputContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 15,
+    right: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  input: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    color: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  sendButton: {
+    backgroundColor: '#e94560',
+    justifyContent: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#555',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  debugText: {
+    color: '#fff',
+    opacity: 0.5,
+  },
 });
