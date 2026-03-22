@@ -37,14 +37,14 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#09090f',
+    backgroundColor: 'transparent',
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: '#09090f',
+    backgroundColor: 'transparent',
   },
   backgroundGlow: {
     position: 'absolute',

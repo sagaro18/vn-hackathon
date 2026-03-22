@@ -1,31 +1,33 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'; 
+// Added ImageBackground and Image to the imports below
+import { View, Text, TouchableOpacity, StyleSheet, ImageBackground, Image } from 'react-native'; 
 import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App'; 
 import { chapter1 } from '../data/story';
 
-// We type the navigation so ESLint and TypeScript stay happy
+// 1. Assets and Mapping (Place this OUTSIDE the function)
+const caveImg = require('../../assets/images/cave.png');
+
+const backgroundMap: Record<string, any> = {
+  "beginner_cave": caveImg,
+};
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Story'>;
 
 export default function StoryScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentLine = chapter1[currentIndex];
-  
-  // Initialize the navigation hook
   const navigation = useNavigation<NavigationProp>();
 
   const handleNext = () => {
-    // 1. Check if we hit the end of the chapter
+    // Navigate to Chat if the story triggers it
     if (currentLine.triggerEvent === 'START_FREE_TIME') {
-      console.warn("AI SOCIAL LINK TRIGGERED! Navigating to chat screen...");
-      // Use replace() instead of navigate() so the player can't swipe 'back' into the finished story
       navigation.replace('Chat'); 
       return;
     }
 
-    // 2. Advance to the next line safely
     if (currentIndex < chapter1.length - 1) {
       setCurrentIndex(currentIndex + 1);
     }
@@ -35,26 +37,28 @@ export default function StoryScreen() {
     <SafeAreaView style={styles.safeArea}>
       <TouchableOpacity style={styles.container} activeOpacity={1} onPress={handleNext}>
         
-        {/* Background Placeholder */}
-        <View style={styles.backgroundPlaceholder}>
-          <Text style={styles.debugText}>BG: {currentLine.background}</Text>
-        </View>
-
-        {/* Character Portrait Placeholder */}
-        {currentLine.speaker !== "" && (
-          <View style={styles.portraitPlaceholder}>
-            <Text style={styles.debugText}>{currentLine.speaker}</Text>
-            <Text style={styles.debugText}>({currentLine.expression})</Text>
-          </View>
-        )}
-
-        {/* Dialogue Box Layer */}
-        <View style={styles.dialogueBox}>
+        {/* BACKGROUND LAYER */}
+        <ImageBackground 
+          source={backgroundMap[currentLine.background] || caveImg} 
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        >
+          {/* CHARACTER PORTRAIT LAYER */}
           {currentLine.speaker !== "" && (
-            <Text style={styles.speakerName}>{currentLine.speaker}</Text>
+            <View style={styles.portraitPlaceholder}>
+              <Text style={styles.debugText}>{currentLine.speaker}</Text>
+              <Text style={styles.debugText}>({currentLine.expression})</Text>
+            </View>
           )}
-          <Text style={styles.dialogueText}>{currentLine.text}</Text>
-        </View>
+
+          {/* DIALOGUE BOX LAYER */}
+          <View style={styles.dialogueBox}>
+            {currentLine.speaker !== "" && (
+              <Text style={styles.speakerName}>{currentLine.speaker}</Text>
+            )}
+            <Text style={styles.dialogueText}>{currentLine.text}</Text>
+          </View>
+        </ImageBackground>
 
       </TouchableOpacity>
     </SafeAreaView>
@@ -62,21 +66,17 @@ export default function StoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000' },
-  container: { flex: 1, backgroundColor: '#000' },
-  backgroundPlaceholder: { 
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#1a1a2e', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
+  // Changed backgroundColors to transparent so the App.tsx or ImageBackground shows through
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  
   portraitPlaceholder: { 
     position: 'absolute', 
-    bottom: 160, 
+    bottom: 180, 
     alignSelf: 'center', 
     width: 250, 
     height: 350, 
-    backgroundColor: '#16213e', 
+    backgroundColor: 'rgba(22, 33, 62, 0.8)', // Made slightly see-through
     justifyContent: 'center', 
     alignItems: 'center',
     borderRadius: 10,
@@ -85,17 +85,17 @@ const styles = StyleSheet.create({
   },
   dialogueBox: { 
     position: 'absolute', 
-    bottom: 20, 
-    left: 15, 
-    right: 15, 
-    height: 130, 
-    backgroundColor: 'rgba(0,0,0,0.85)', 
+    bottom: 40, 
+    left: 20, 
+    right: 20, 
+    minHeight: 120, 
+    backgroundColor: 'rgba(0, 0, 0, 0.85)', 
     borderColor: '#e94560', 
     borderWidth: 2, 
-    borderRadius: 10, 
-    padding: 15 
+    borderRadius: 12, 
+    padding: 20 
   },
-  speakerName: { color: '#e94560', fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
-  dialogueText: { color: '#FFF', fontSize: 16, lineHeight: 24 },
-  debugText: { color: '#fff', opacity: 0.5 }
+  speakerName: { color: '#e94560', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  dialogueText: { color: '#FFF', fontSize: 18, lineHeight: 26 },
+  debugText: { color: '#fff', opacity: 0.7 }
 });
