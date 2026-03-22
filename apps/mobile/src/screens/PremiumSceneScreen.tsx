@@ -43,7 +43,7 @@ export default function PremiumSceneScreen() {
 
   const handleNext = () => {
     if (isLastLine) {
-      navigation.replace('Home'); // Navigates back home at the end!
+      navigation.replace('Home'); 
       return;
     }
 
