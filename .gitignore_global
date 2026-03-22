@@ -1,0 +1,42 @@
+node_modules/
+.expo/
+dist/
+.env
+# OS Metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node & Package Managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Environment Variables (CRITICAL: Never commit API keys!)
+.env
+.env.*
+!.env.example
+
+# --- Expo / React Native (apps/mobile) ---
+.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+# Ignore native folders if you are using Expo Go / Managed workflow
+apps/mobile/android/
+apps/mobile/ios/
+
+# --- Hono / Backend (apps/backend) ---
+apps/backend/dist/
+apps/backend/build/
+
+# TypeScript
+*.tsbuildinfo
+
+# Editor / IDE configuration
+.vscode/
+.idea/
+*.swp
+*.swo
