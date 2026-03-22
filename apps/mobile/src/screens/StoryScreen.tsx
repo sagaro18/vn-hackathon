@@ -6,26 +6,21 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App'; 
 import { chapter1 } from '../data/story';
 
-// We type the navigation so ESLint and TypeScript stay happy
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Story'>;
 
 export default function StoryScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentLine = chapter1[currentIndex];
   
-  // Initialize the navigation hook
   const navigation = useNavigation<NavigationProp>();
 
   const handleNext = () => {
-    // 1. Check if we hit the end of the chapter
     if (currentLine.triggerEvent === 'START_FREE_TIME') {
-      console.warn("AI SOCIAL LINK TRIGGERED! Navigating to chat screen...");
-      // Use replace() instead of navigate() so the player can't swipe 'back' into the finished story
-      navigation.replace('Chat'); 
+      console.warn("AI SOCIAL LINK TRIGGERED! Navigating to choice screen...");
+      navigation.replace('Choice'); 
       return;
     }
 
-    // 2. Advance to the next line safely
     if (currentIndex < chapter1.length - 1) {
       setCurrentIndex(currentIndex + 1);
     }
@@ -34,13 +29,10 @@ export default function StoryScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <TouchableOpacity style={styles.container} activeOpacity={1} onPress={handleNext}>
-        
-        {/* Background Placeholder */}
         <View style={styles.backgroundPlaceholder}>
           <Text style={styles.debugText}>BG: {currentLine.background}</Text>
         </View>
 
-        {/* Character Portrait Placeholder */}
         {currentLine.speaker !== "" && (
           <View style={styles.portraitPlaceholder}>
             <Text style={styles.debugText}>{currentLine.speaker}</Text>
@@ -48,14 +40,12 @@ export default function StoryScreen() {
           </View>
         )}
 
-        {/* Dialogue Box Layer */}
         <View style={styles.dialogueBox}>
           {currentLine.speaker !== "" && (
             <Text style={styles.speakerName}>{currentLine.speaker}</Text>
           )}
           <Text style={styles.dialogueText}>{currentLine.text}</Text>
         </View>
-
       </TouchableOpacity>
     </SafeAreaView>
   );
