@@ -1,14 +1,10 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import { useGems } from '../context/GemContext'; 
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Paywall'>;
 type PaywallRouteProp = RouteProp<RootStackParamList, 'Paywall'>; 
@@ -17,14 +13,35 @@ export default function PaywallScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<PaywallRouteProp>(); 
 
+  const { gems: currentGems, spendGems, buyMoreGems } = useGems();
+
   const { characterId } = route.params;
   const charName = characterId === 'vaina' ? 'Vaina' : 'Meri';
-
-  const currentGems = 100;
   const premiumCost = 50;
 
   const handleUnlock = () => {
-    navigation.replace('PremiumScene', { characterId });
+    const success = spendGems(premiumCost);
+    
+    if (success) {
+      navigation.replace('PremiumScene', { characterId });
+    } else {
+      // ✅ Web-safe check here too!
+      if (Platform.OS === 'web') {
+        const wantsToBuy = window.confirm(`Not Enough Gems\n\nYou need ${premiumCost - currentGems} more gems. Would you like to buy more?`);
+        if (wantsToBuy) {
+          buyMoreGems();
+        }
+      } else {
+        Alert.alert(
+          "Not Enough Gems",
+          `You need ${premiumCost - currentGems} more gems to unlock this scene.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Buy Gems", onPress: buyMoreGems }
+          ]
+        );
+      }
+    }
   };
 
   const handleMaybeLater = () => {
