@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { GemProvider } from './src/context/GemContext'; 
 
 import StoryScreen from './src/screens/StoryScreen';
 import ChatScreen from './src/screens/ChatScreen';
@@ -22,15 +23,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="Story" component={StoryScreen} />
-        <Stack.Screen name="Choice" component={ChoiceScreen} /> 
-        <Stack.Screen name="Chat" component={ChatScreen} />
-        <Stack.Screen name="Paywall" component={PaywallScreen} />
-        <Stack.Screen name="PremiumScene" component={PremiumSceneScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GemProvider>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Story" component={StoryScreen} />
+          <Stack.Screen name="Choice" component={ChoiceScreen} /> 
+          <Stack.Screen name="Chat" component={ChatScreen} />
+          <Stack.Screen name="Paywall" component={PaywallScreen} />
+          <Stack.Screen name="PremiumScene" component={PremiumSceneScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </GemProvider>
   );
 }
