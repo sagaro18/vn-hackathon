@@ -3,17 +3,16 @@ import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { vainaAgent } from "./agents/vaina.js";
-import { meriAgent } from "./agents/meri.js"; 
-
+import { meriAgent } from "./agents/meri.js";
 const app = new Hono();
 
 app.use(
-  "/*",
-  cors({
-    origin: "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
-  })
+    "/*",
+    cors({
+      origin: "*",
+      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowHeaders: ["Content-Type"],
+    })
 );
 
 const chatRequestSchema = z.object({
@@ -22,49 +21,6 @@ const chatRequestSchema = z.object({
   currentAffection: z.number().optional(),
   turnCount: z.number().optional(),
 });
-
-type Expression = "Happy" | "Neutral" | "Sad" | "Angry" | "Giggling";
-
-function scoreAffection(userMessage: string, characterId: string): {
-  affectionDelta: number;
-  expression: Expression;
-} {
-  const msg = userMessage.toLowerCase().trim();
-
-  const negativeSignals = [
-    "shut up", "stupid", "idiot", "liar", "you're weird", 
-    "you are weird", "i don't care", "whatever", "leave me alone", 
-    "annoying", "dumb", "freak"
-  ];
-
-  const negativeMatch = negativeSignals.some((phrase) => msg.includes(phrase));
-  if (negativeMatch) {
-    return { affectionDelta: -1, expression: "Angry" };
-  }
-
-  let positiveSignals: string[] = [];
-
-  if (characterId === "vaina") {
-    positiveSignals = [
-      "thank you", "tell me more", "that sounds beautiful", 
-      "stars", "dream", "adventure", "leave with me", "how are you"
-    ];
-  } else if (characterId === "meri") {
-    positiveSignals = [
-      "food", "eat", "hungry", "meal", "share", 
-      "you're normal", "i understand", "want to hang out",
-      "are you okay", "you seem" 
-    ];
-  }
-
-  const positiveMatch = positiveSignals.some((phrase) => msg.includes(phrase));
-  
-  if (positiveMatch) {
-    return { affectionDelta: 1, expression: characterId === "vaina" ? "Happy" : "Giggling" };
-  }
-
-  return { affectionDelta: 0, expression: "Neutral" };
-}
 
 app.get("/", (c) => c.json({ ok: true, message: "Hono backend is alive" }));
 app.get("/health", (c) => c.json({ ok: true }));
@@ -85,30 +41,64 @@ app.post("/api/chat", async (c) => {
     else if (characterId === "meri") activeAgent = meriAgent;
     else return c.json({ ok: false, error: "Character not found" }, 404);
 
-    const result = await activeAgent.generate(userMessage);
+    // FIX: Changed "0" to "-1, 0, or 1" so the AI knows it's supposed to change it!
+    const systemInstruction = `\n\n[SYSTEM INSTRUCTION: You must respond in valid JSON format exactly like this: {"reply": "your dialogue here", "affectionDelta": <insert -1, 0, or 1 here>, "suggestedPrompts": ["Option 1", "Option 2", "Option 3"]}. Do not include any other text outside the JSON.]`;
 
-    const reply =
-      typeof result === "string"
+    const result = await activeAgent.generate(userMessage + systemInstruction);
+
+    const rawText = typeof result === "string"
         ? result
         : typeof result?.text === "string"
-          ? result.text
-          : "...";
+            ? result.text
+            : "{}";
 
-    const { affectionDelta, expression } = scoreAffection(userMessage, characterId);
+    // DEBUG LOG: This will print the AI's raw output to your backend terminal!
+    console.log("\n--- RAW AI RESPONSE ---");
+    console.log(rawText);
+    console.log("-----------------------\n");
 
-    const nextAffection = Math.max(0, currentAffection + affectionDelta);
+    let reply = "...";
+    let suggestedPrompts: string[] = [];
+    let aiAffectionDelta = 0;
+
+    // Parse the AI's JSON response
+    try {
+      const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const aiData = JSON.parse(cleanedText);
+
+      reply = aiData.reply || "...";
+      suggestedPrompts = aiData.suggestedPrompts || [];
+
+      aiAffectionDelta = Number(aiData.affectionDelta);
+      if (isNaN(aiAffectionDelta)) {
+        aiAffectionDelta = 0;
+      }
+
+    } catch (parseError) {
+      console.warn("Failed to parse AI JSON, falling back to raw text.");
+      reply = rawText;
+      suggestedPrompts = ["Tell me more.", "I see.", "That's interesting."];
+    }
+
+    const nextAffection = Math.max(0, currentAffection + aiAffectionDelta);
     const nextTurnCount = turnCount + 1;
     const sceneEnded = nextTurnCount >= 4 && nextAffection >= 3;
+
+    // Determine expression based on the AI's affection delta
+    let expression = "Neutral";
+    if (aiAffectionDelta > 0) expression = characterId === "vaina" ? "Happy" : "Giggling";
+    else if (aiAffectionDelta < 0) expression = "Angry";
 
     return c.json({
       ok: true,
       characterId,
       reply,
-      affectionDelta,
+      affectionDelta: aiAffectionDelta,
       expression,
       nextAffection,
       nextTurnCount,
       sceneEnded,
+      suggestedPrompts,
     });
   } catch (error) {
     console.error("Chat Error:", error);

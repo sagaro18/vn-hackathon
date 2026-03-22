@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App';
+import { RootStackParamList } from '../../App'; // Adjust path if needed
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Chat'>;
 type ChatRouteProp = RouteProp<RootStackParamList, 'Chat'>;
@@ -26,28 +26,36 @@ export default function ChatScreen() {
   const charName = isVaina ? 'Vaina' : 'Meri';
   const bgImage = isVaina ? 'Village_Night' : 'Training_Grounds';
   const initialExpression = isVaina ? 'Happy' : 'Neutral';
+
   const defaultLine = isVaina
-    ? 'Well Mister, what did you want to talk about?'
-    : "Oh, hey. Didn't see you there. Just moving these logs. Barely even a warmup.";
+      ? 'Well Mister, what did you want to talk about?'
+      : "Oh, hey. Didn't see you there. Just moving these logs. Barely even a warmup.";
 
-  const quickPrompts = isVaina
-    ? [
-        'Do you come up here to watch the stars a lot?',
-        'What is this village like at night?',
-        "You always call me 'Mister' like we're in some old story.",
-      ]
-    : [
-        'Are those logs heavy?',
-        'Do you train here every day?',
-        'You look like you could eat a massive meal after that workout.',
-      ];
+  // 1. Initial prompts extracted into their own variables
+  const initialVainaPrompts = [
+    'Do you come up here to watch the stars a lot?',
+    'What is this village like at night?',
+    "You always call me 'Mister' like we're in some old story.",
+  ];
 
+  const initialMeriPrompts = [
+    'Are those logs heavy?',
+    'Do you train here every day?',
+    'You look like you could eat a massive meal after that workout.',
+  ];
+
+  // 2. State setup
   const [currentLine, setCurrentLine] = useState(defaultLine);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [affection, setAffection] = useState(0);
   const [turnCount, setTurnCount] = useState(0);
   const [currentExpression, setCurrentExpression] = useState(initialExpression);
+
+  // 3. New state for the dynamic prompts
+  const [quickPrompts, setQuickPrompts] = useState<string[]>(
+      isVaina ? initialVainaPrompts : initialMeriPrompts
+  );
 
   const sendMessage = async (forcedMessage?: string) => {
     const userMessage = (forcedMessage ?? inputText).trim();
@@ -56,6 +64,9 @@ export default function ChatScreen() {
 
     setInputText('');
     setLoading(true);
+
+    // Clear the quick prompts while the AI is thinking for a cleaner UI
+    setQuickPrompts([]);
 
     try {
       const response = await fetch('http://localhost:3000/api/chat', {
@@ -80,6 +91,14 @@ export default function ChatScreen() {
       setTurnCount(data.nextTurnCount ?? turnCount);
       setCurrentExpression(data.expression ?? 'Neutral');
 
+      // 4. Update the quick prompts from the AI's JSON response
+      if (data.suggestedPrompts && Array.isArray(data.suggestedPrompts) && data.suggestedPrompts.length > 0) {
+        setQuickPrompts(data.suggestedPrompts);
+      } else {
+        // Fallback just in case the AI returns an empty array
+        setQuickPrompts(isVaina ? initialVainaPrompts : initialMeriPrompts);
+      }
+
       if (data.sceneEnded) {
         setTimeout(() => {
           navigation.replace('Paywall', { characterId });
@@ -88,73 +107,75 @@ export default function ChatScreen() {
     } catch (error) {
       console.error('Chat Error:', error);
       setCurrentLine('...She seems unresponsive.');
+      // Restore initial prompts if there's a network error so the user isn't stuck
+      setQuickPrompts(isVaina ? initialVainaPrompts : initialMeriPrompts);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.backgroundPlaceholder}>
-          <Text style={styles.debugText}>BG: {bgImage}</Text>
-        </View>
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.backgroundPlaceholder}>
+            <Text style={styles.debugText}>BG: {bgImage}</Text>
+          </View>
 
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{charName} ({currentExpression})</Text>
-          <Text style={styles.meter}>Affection: {affection} / 3</Text>
-        </View>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{charName} ({currentExpression})</Text>
+            <Text style={styles.meter}>Affection: {affection} / 3</Text>
+          </View>
 
-        <View style={styles.portraitPlaceholder}>
-          <Text style={styles.debugText}>{charName}</Text>
-          <Text style={styles.debugText}>({currentExpression})</Text>
-        </View>
+          <View style={styles.portraitPlaceholder}>
+            <Text style={styles.debugText}>{charName}</Text>
+            <Text style={styles.debugText}>({currentExpression})</Text>
+          </View>
 
-        <View style={styles.dialogueBox}>
-          <Text style={styles.speakerName}>{charName}</Text>
-          <Text style={styles.dialogueText}>
-            {loading ? `${charName} is thinking...` : currentLine}
-          </Text>
-          <Text style={styles.turnText}>Turns: {turnCount}</Text>
-        </View>
+          <View style={styles.dialogueBox}>
+            <Text style={styles.speakerName}>{charName}</Text>
+            <Text style={styles.dialogueText}>
+              {loading ? `${charName} is thinking...` : currentLine}
+            </Text>
+            <Text style={styles.turnText}>Turns: {turnCount}</Text>
+          </View>
 
-        <View style={styles.quickPromptRow}>
-          {quickPrompts.map((prompt) => (
+          <View style={styles.quickPromptRow}>
+            {quickPrompts.map((prompt, index) => (
+                <TouchableOpacity
+                    key={index} // Changed to index to prevent key collision if AI generates duplicate strings
+                    style={[styles.quickPromptButton, loading && styles.quickPromptDisabled]}
+                    onPress={() => sendMessage(prompt)}
+                    disabled={loading}
+                >
+                  <Text style={styles.quickPromptText}>{prompt}</Text>
+                </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.inputContainer}>
+            <TextInput
+                style={styles.input}
+                placeholder={`Say something to ${charName}...`}
+                placeholderTextColor="#888"
+                value={inputText}
+                onChangeText={setInputText}
+                editable={!loading}
+                onSubmitEditing={() => sendMessage()}
+                returnKeyType="send"
+            />
             <TouchableOpacity
-              key={prompt}
-              style={[styles.quickPromptButton, loading && styles.quickPromptDisabled]}
-              onPress={() => sendMessage(prompt)}
-              disabled={loading}
+                style={[styles.sendButton, loading && styles.sendButtonDisabled]}
+                onPress={() => sendMessage()}
+                disabled={loading}
             >
-              <Text style={styles.quickPromptText}>{prompt}</Text>
+              <Text style={styles.sendButtonText}>Send</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder={`Say something to ${charName}...`}
-            placeholderTextColor="#888"
-            value={inputText}
-            onChangeText={setInputText}
-            editable={!loading}
-            onSubmitEditing={() => sendMessage()}
-            returnKeyType="send"
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, loading && styles.sendButtonDisabled]}
-            onPress={() => sendMessage()}
-            disabled={loading}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
   );
 }
 
